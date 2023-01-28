@@ -6,7 +6,7 @@ Created on Sun Jan 22 11:59:52 2023
 """
 
 
-from greenwashing import GreenwashingDB, GreenwashingMainObj
+from greenwashing import GreenwashingDB, GreenwashingMainObj, CorporationDB, CorporationInfoMain
 import os
 import config
 
@@ -29,11 +29,28 @@ if __name__ == '__main__':
     
     # corporations
     for corporation in config.CORPORATION_LIST:
-        myGreenwashing.fetchTweets(tweetfilter=config.GREENWASH_FILTER, name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE)
+        myGreenwashing.fetchTweets(tweetfilter=config.GREENWASH_FILTER, name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE, enddate=config.END_DATE)
     
     
-    #myGreenwashing.printSingleTweets(['1502324722037624846'])
+   
     
-    # myDB.listTable()
+    #myDB.listTable()
     myDB.close()
     
+    
+    
+    # this fills another DB with the number of tweets per year
+    
+    myDB2 = CorporationDB(os.path.join(config.PATH_DATA, config.DB_NAME2))
+    myDB2.createTable(config.DB_TABLE_NAME2)
+    
+    myCorporation = CorporationInfoMain()
+    myCorporation.setDB(myDB2)
+    myCorporation.setBearerToken(config.BEARER_TOKEN)
+    
+    for corporation in config.CORPORATION_LIST:
+        myCorporation.fetchTweets(name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE, enddate=config.END_DATE)
+    
+    
+    #myDB2.listTable()
+    myDB2.close()

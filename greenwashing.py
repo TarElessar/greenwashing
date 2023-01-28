@@ -16,6 +16,7 @@ import pytz
 import time
 #import seaborn as sns
 import pandas as pd
+import numpy as np
 
 class Tweet:
     def __init__(self, json_str=None, corporation="", sqlite_row=None):
@@ -82,6 +83,118 @@ class Tweet:
                 self.retweet_count, self.reply_count, self.like_count, self.quote_count, self.impression_count, self.follower_count)
     
     
+class CorporationDB:
+    
+    
+    def __init__(self, path):
+        print(f"Establishing connection to {path}")
+        self.conn = sqlite3.connect(path)
+        self.table_name = None
+        
+    def setTable(self, table_name):
+        self.table_name = table_name
+        
+    def createTable(self, table_name):
+        try:
+            self.table_name = table_name
+            sqlite_create_table_query = f'''CREATE TABLE {table_name} (
+            corporation TEXT NOT NULL, 
+            tweet_date datetime, 
+            tweet_date_end datetime,
+            tweet_volume INTEGER,
+            fetch_date datetime);'''
+        
+            cursor = self.conn.cursor()
+            cursor.execute(sqlite_create_table_query)
+            self.conn.commit()
+            print("SQLite table created")
+        
+            #cursor.close()
+        
+        except sqlite3.Error as error:
+            print("Note: ", error)
+            
+        sql_query = """SELECT name FROM sqlite_master  
+  WHERE type='table';"""
+  
+        cursor.execute(sql_query)
+            
+        print(f"Current tables: {cursor.fetchall()}")
+
+                
+    def close(self):
+        self.conn.close()
+        
+    def saveDatapoint(self, name, tweet_date, tweet_date_end, volume, current_date):
+        
+        try:
+            sql = f''' INSERT INTO {self.table_name} (corporation, tweet_date, tweet_date_end, tweet_volume, fetch_date) VALUES(?, ?, ?, ?, ?);'''
+            
+            cursor = self.conn.cursor()
+            cursor.execute(sql, (name, tweet_date, tweet_date_end, volume, current_date))
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+            #print("Note: ", error)
+            
+    def listTable(self):
+        cursor = self.conn.cursor()
+        cursor.execute(f"select * from {self.table_name}")
+        results = cursor.fetchall()
+        print("\n==================================\n")
+        for result in results:
+            print(result)
+            print("\n==================================\n")
+            
+            
+    def loadValues(self, sql="", args=None):
+        cursor = self.conn.cursor()
+
+        sqlite_select_query = f"""SELECT * from {self.table_name}""" + " " + sql
+        if args is None:
+            cursor.execute(sqlite_select_query)
+        else:
+            cursor.execute(sqlite_select_query, args)
+        records = cursor.fetchall()
+        
+        values = [[row[1], row[2], row[3]] for row in records]
+        
+        return values
+    
+    
+    def loadTweetCounts(self, sql="", args=None, corporation = ""):
+        cursor = self.conn.cursor()
+        
+        
+        # pull latest date for corporation
+        cursor.execute(f"""SELECT * from {self.table_name} WHERE corporation = ?""", [corporation,])
+        records = cursor.fetchall()
+        fetchdates = [datetime.datetime.strptime(row[-1], '%Y-%m-%d %H:%M:%S.%f') for row in records]
+        if len(fetchdates) > 0:
+            fetchdate_latest = max(fetchdates)
+            
+            
+            if sql == "":
+                sql = "WHERE fetch_date = ?"
+                args = (fetchdate_latest,)
+            else:
+                sql += " AND fetch_date = ?"
+                args = args + (fetchdate_latest,)
+    
+            sqlite_select_query = f"""SELECT * from {self.table_name}""" + " " + sql
+            
+            
+            if args is None:
+                cursor.execute(sqlite_select_query)
+            else:
+                cursor.execute(sqlite_select_query, args)
+            records = cursor.fetchall()
+            
+            tweet_count = np.sum([row[3] for row in records])
+
+            return records, tweet_count
+        else:
+            return [], 0
 
 class GreenwashingDB:
     
@@ -137,9 +250,7 @@ class GreenwashingDB:
         
     def saveTweet(self, name, tweet):
         
-                    
-        # TODO: only add if not exists
-        
+
         try:
             sql = f''' INSERT INTO {self.table_name} (tweet_id, retweeted_tweet_id, conservation_id, author_id, date_posted, 
             corporation, tweet_content, author, location, retweet_count, reply_count, like_count, 
@@ -179,7 +290,60 @@ class GreenwashingDB:
     
     
 
+class CorporationInfoMain:
+    
+    def __init__(self):
+        self.client = None
+        self.db = None
+        self.current_date = datetime.datetime.now()
+    
+    
+    def setBearerToken(self, bt):
+        self.client = Twarc2(bearer_token=bt)
+        
+    def setDB(self, myDB):
+        self.db = myDB
+        
+        
+    def fetchTweets(self, name="", mention="", startdate=datetime.datetime(2020, 10, 1, 0, 0, 0, 0, datetime.timezone.utc), enddate=datetime.datetime(2023, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)):
+        
+        print(f"Fetching All Tweets for {mention} back to {startdate}")
+        
+        query = f"{mention} -is:retweet -is:reply"
+        
+        y1 = startdate.year
+        #y2 = datetime.date.today().year
+        y2 = enddate.year
+        
+        for year in range(y1, y2):
+        
+            search_results = self.client.counts_all(query=query, start_time=datetime.datetime(year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc), end_time=datetime.datetime(year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc))
+            
+            #count = 0
+            
+            
+            cnt = 0
+            for page in search_results:
+                #count += int(json.loads(json.dumps(page))["meta"]["total_tweet_count"])
+                
+                cnt += 1
+                
+                # if cnt > 3:
+                #     break
+                
+                entry_num = len(json.loads(json.dumps(page))["data"])
+                
+                count = int(json.loads(json.dumps(page))["meta"]["total_tweet_count"])
+                count_date = json.loads(json.dumps(page))["data"][0]["start"]
+                count_date_end = json.loads(json.dumps(page))["data"][entry_num - 1]["start"]
+                
+                print(count, count_date, count_date_end)
+                
+                self.db.saveDatapoint(name, count_date, count_date_end, count, self.current_date)
+                
 
+        
+   
 
 
 class GreenwashingMainObj:
@@ -196,19 +360,21 @@ class GreenwashingMainObj:
         self.db = myDB
         
         
-    def fetchTweets(self, tweetfilter="", name="", mention="", startdate=datetime.datetime(2020, 10, 1, 0, 0, 0, 0, datetime.timezone.utc)):
+    def fetchTweets(self, tweetfilter="", name="", mention="", startdate=datetime.datetime(2020, 10, 1, 0, 0, 0, 0, datetime.timezone.utc), enddate=datetime.datetime(2023, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)):
         
-        print(f"Fetching Tweets for {mention} back to {startdate}")
+        print(f"Fetching GW Tweets for {mention} back to {startdate}")
         
-        
-        query = f"{mention} ({tweetfilter})"
+
+        query = f"{mention} ({tweetfilter}) -is:reply"
         #query = f"@tacobell @yumbrands #greenwashing"
         
-        search_results = self.client.search_all(query=query, max_results=100, start_time=startdate)
+        search_results = self.client.search_all(query=query, max_results=100, start_time=startdate, end_time=enddate)
         
         for page in search_results:
 
             result = expansions.flatten(page)
+            
+            print(f'Fetching {len(result)} tweets...')
           
 
             for tweet in result:
@@ -272,37 +438,100 @@ class GreenwashingExcel:
     
     def __init__(self, path):
        self.db = None
+       self.db_corp = None
        self.path = path
         
     def setDB(self, myDB):
         self.db = myDB
         
+    def setCorporationDB(self, myDB):
+        self.db_corp = myDB
+        
     def writeTweets(self, startdate=config.START_DATE, enddate=datetime.datetime.now(datetime.timezone.utc), corporation=""):
-        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_GW_Mentions','Annual_GW_Mentions','Event_Peak','Tweet_Text', 'Tweet_Author', 'Retweets_Count', 'Impression'])
-        tweets = self.db.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ?", args=("yumbrands", startdate, enddate,))
+        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated'])
+        tweets = self.db.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ?", args=(corporation, startdate, enddate,))
+        
+        
+        all_mentions = len(self.db.loadTweets("WHERE corporation = ? AND retweeted_tweet_id = ?", args=(corporation,0)))
+        
+        if self.db_corp is not None:
+            all_tweet_counts, tweet_count_total = self.db_corp.loadTweetCounts("WHERE corporation = ?", args=(corporation,), corporation=corporation)
+        else:
+            tweet_count_total = 0
         
         for tweet in tweets:
             rt = tweet.retweet_count
             if tweet.retweeted_tweet_id > 0:
                 rt = -1
                 
+            eng = tweet.reply_count + tweet.like_count + tweet.quote_count
+            if tweet.retweeted_tweet_id == 0:
+                eng += tweet.retweet_count
+                
+                
             dt = tweet.date_posted.replace(tzinfo=None)
+            
+            
+            yearly_mentions = len(self.db.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ? AND retweeted_tweet_id = ?", args=(corporation,datetime.datetime(dt.year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),datetime.datetime(dt.year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),0)))
+            
+            
+            if self.db_corp is not None:
+                yearly_tweet_counts, tweet_count_yearly = self.db_corp.loadTweetCounts("WHERE corporation = ? AND tweet_date > ? AND tweet_date_end < ?", args=(corporation,datetime.datetime(dt.year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),datetime.datetime(dt.year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)), corporation=corporation)
+            else:
+                tweet_count_yearly = 0
+            
+            
+            
             tweetInfo = {'Company':corporation, 'Account':config.TWITTER_NAMES[corporation], 'Tweet_Author':tweet.author,
-                       'Date':dt, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count}
+                       'Date':dt, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count,
+                       'Impression_Estimated':tweet.follower_count, 'Engagement':eng, 
+                       'Cmltv_GW_Mentions':all_mentions, 'Annual_GW_Mentions':yearly_mentions,
+                       'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly}
             df = df.append(tweetInfo, ignore_index=True)
         
         df.to_excel(self.path)
         
         
     def writeUniqueTweets(self, startdate=config.START_DATE, enddate=datetime.datetime.now(datetime.timezone.utc), corporation=""):
-        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_GW_Mentions','Annual_GW_Mentions','Event_Peak','Tweet_Text', 'Tweet_Author', 'Retweets_Count', 'Impression'])
-        tweets = self.db.loadTweets("WHERE retweeted_tweet_id = ? AND corporation = ? AND date_posted > ? AND date_posted < ?", args=(0, "yumbrands", startdate, enddate,))
+        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated'])
+        tweets = self.db.loadTweets("WHERE retweeted_tweet_id = ? AND corporation = ? AND date_posted > ? AND date_posted < ?", args=(0, corporation, startdate, enddate,))
+        
+        
+        all_mentions = len(self.db.loadTweets("WHERE corporation = ? AND retweeted_tweet_id = ?", args=(corporation,0)))
+        
+        if self.db_corp is not None:
+            all_tweet_counts, tweet_count_total = self.db_corp.loadTweetCounts("WHERE corporation = ?", args=(corporation,), corporation=corporation)
+        else:
+            tweet_count_total = 0
         
         for tweet in tweets:
+            
+            tweets_children = self.db.loadTweets("WHERE retweeted_tweet_id = ?", args=(tweet.tweet_id,))
+            engagement = tweet.reply_count + tweet.like_count + tweet.quote_count + tweet.retweet_count
+            impression = tweet.follower_count
+            
+            for child in tweets_children:
+                #engagement += child.reply_count + child.like_count + child.quote_count
+                impression += child.follower_count
+            
+        
+            
             rt = tweet.retweet_count
             dt = tweet.date_posted.replace(tzinfo=None)
+            
+            yearly_mentions = len(self.db.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ? AND retweeted_tweet_id = ?", args=(corporation,datetime.datetime(dt.year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),datetime.datetime(dt.year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),0)))
+            
+            
+            if self.db_corp is not None:
+                yearly_tweet_counts, tweet_count_yearly = self.db_corp.loadTweetCounts("WHERE corporation = ? AND tweet_date > ? AND tweet_date_end < ?", args=(corporation,datetime.datetime(dt.year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),datetime.datetime(dt.year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)), corporation=corporation)
+            else:
+                tweet_count_yearly = 0
+            
             tweetInfo = {'Company':corporation, 'Account':config.TWITTER_NAMES[corporation], 'Tweet_Author':tweet.author,
-                       'Date':dt, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count}
+                       'Date':dt, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count,
+                       'Impression_Estimated':impression, 'Engagement':engagement, 
+                       'Cmltv_GW_Mentions':all_mentions, 'Annual_GW_Mentions':yearly_mentions,
+                       'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly}
             df = df.append(tweetInfo, ignore_index=True)
         
         df.to_excel(self.path)
