@@ -275,6 +275,7 @@ class GreenwashingDB:
             
     def loadTweets(self, sql="", args=None):
         cursor = self.conn.cursor()
+        
 
         sqlite_select_query = f"""SELECT * from {self.table_name}""" + " " + sql
         if args is None:
@@ -366,6 +367,7 @@ class GreenwashingMainObj:
         
 
         query = f"{mention} ({tweetfilter}) -is:reply"
+        #query = f"{mention} ({tweetfilter})"
         #query = f"@tacobell @yumbrands #greenwashing"
         
         search_results = self.client.search_all(query=query, max_results=100, start_time=startdate, end_time=enddate)
@@ -535,6 +537,53 @@ class GreenwashingExcel:
             df = df.append(tweetInfo, ignore_index=True)
         
         df.to_excel(self.path)
+        
+    def writeAllUniqueTweets(self, startdate=config.START_DATE, enddate=datetime.datetime.now(datetime.timezone.utc), corporation_list=[]):
+        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated'])
+        
+        for corporation in corporation_list:
+            tweets = self.db.loadTweets("WHERE retweeted_tweet_id = ? AND corporation = ? AND date_posted > ? AND date_posted < ?", args=(0, corporation, startdate, enddate,))
+            
+            
+            all_mentions = len(self.db.loadTweets("WHERE corporation = ? AND retweeted_tweet_id = ?", args=(corporation,0)))
+            
+            if self.db_corp is not None:
+                all_tweet_counts, tweet_count_total = self.db_corp.loadTweetCounts("WHERE corporation = ?", args=(corporation,), corporation=corporation)
+            else:
+                tweet_count_total = 0
+            
+            for tweet in tweets:
+                
+                tweets_children = self.db.loadTweets("WHERE retweeted_tweet_id = ?", args=(tweet.tweet_id,))
+                engagement = tweet.reply_count + tweet.like_count + tweet.quote_count + tweet.retweet_count
+                impression = tweet.follower_count
+                
+                for child in tweets_children:
+                    #engagement += child.reply_count + child.like_count + child.quote_count
+                    impression += child.follower_count
+                
+            
+                
+                rt = tweet.retweet_count
+                dt = tweet.date_posted.replace(tzinfo=None)
+                
+                yearly_mentions = len(self.db.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ? AND retweeted_tweet_id = ?", args=(corporation,datetime.datetime(dt.year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),datetime.datetime(dt.year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),0)))
+                
+                
+                if self.db_corp is not None:
+                    yearly_tweet_counts, tweet_count_yearly = self.db_corp.loadTweetCounts("WHERE corporation = ? AND tweet_date > ? AND tweet_date_end < ?", args=(corporation,datetime.datetime(dt.year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),datetime.datetime(dt.year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)), corporation=corporation)
+                else:
+                    tweet_count_yearly = 0
+                
+                tweetInfo = {'Company':corporation, 'Account':config.TWITTER_NAMES[corporation], 'Tweet_Author':tweet.author,
+                           'Date':dt, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count,
+                           'Impression_Estimated':impression, 'Engagement':engagement, 
+                           'Cmltv_GW_Mentions':all_mentions, 'Annual_GW_Mentions':yearly_mentions,
+                           'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly}
+                df = df.append(tweetInfo, ignore_index=True)
+        
+        df.to_excel(self.path)
+     
         
     
 

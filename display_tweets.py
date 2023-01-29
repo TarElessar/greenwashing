@@ -21,32 +21,43 @@ if __name__ == '__main__':
     myDB2 = CorporationDB(os.path.join(config.PATH_DATA, config.DB_NAME2))
     myDB2.setTable(config.DB_TABLE_NAME2)
     
-    
-    gwPlots = GreenwashingPlots()
-    gwPlots.setDB(myDB)
-    
-    gwExcel = GreenwashingExcel(os.path.join(config.PATH_DATA, r"amazon_all.xlsx"))
-    gwExcel.setDB(myDB)
-    gwExcel.setCorporationDB(myDB2)
-    
-    gwExcel2 = GreenwashingExcel(os.path.join(config.PATH_DATA, r"amazon_unique.xlsx"))
-    gwExcel2.setDB(myDB)
-    gwExcel2.setCorporationDB(myDB2)
-    
-    
-    
-    
-    # plotting options
-    
-    # # plot a number of tweets over time
-    # # gwPlots.plotViewsVSTime(startdate=datetime.datetime(2020, 10, 1, 0, 0, 0, 0, datetime.timezone.utc), corporation="yumbrands")
-    
-    
-    # pull a number of tweets into an excel file
-    gwExcel.writeTweets(corporation="amazon")
-    
-    # pull unique tweets into an excel file
-    gwExcel2.writeUniqueTweets(corporation="amazon")
+    for corporation in config.CORPORATION_LIST:
+        
+
+        gwPlots = GreenwashingPlots()
+        gwPlots.setDB(myDB)
+        
+        gwExcel = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_all.xlsx"))
+        gwExcel.setDB(myDB)
+        gwExcel.setCorporationDB(myDB2)
+        
+        gwExcel2 = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_unique.xlsx"))
+        gwExcel2.setDB(myDB)
+        gwExcel2.setCorporationDB(myDB2)
+        
+        
+        
+        
+        
+        
+        # plotting options
+        
+        # # plot a number of tweets over time
+        # # gwPlots.plotViewsVSTime(startdate=datetime.datetime(2020, 10, 1, 0, 0, 0, 0, datetime.timezone.utc), corporation="yumbrands")
+        
+        
+        # pull a number of tweets into an excel file
+        gwExcel.writeTweets(corporation=corporation)
+        
+        # pull unique tweets into an excel file
+        gwExcel2.writeUniqueTweets(corporation=corporation)
+        
+        
+    gwExcel3 = GreenwashingExcel(os.path.join(config.PATH_DATA, r"all_tweets.xlsx"))
+    gwExcel3.setDB(myDB)
+    gwExcel3.setCorporationDB(myDB2)
+        
+    gwExcel3.writeAllUniqueTweets(corporation_list = config.CORPORATION_LIST)
         
 
     

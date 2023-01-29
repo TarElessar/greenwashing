@@ -22,8 +22,11 @@ DB_TABLE_NAME2 = "gw2"
 
 # parameters below are for your filters, etc - the corporation names should have no spaces, e.g. use yumbrands
 GREENWASH_FILTER = "greenwash OR greenwashing OR #greenwashing OR #greenwash OR #sustainabilitywashing OR #fakestewardship OR #greenwashingalert OR #greenwashingexposed OR #fooledbymarketing OR #greenwashingfraud OR #notreallygreen OR #greenwashingscandal"
-CORPORATION_LIST = ["amazon"] 
-START_DATE = datetime.datetime(2022, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)
-END_DATE = datetime.datetime(2023, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)
+CORPORATION_LIST = ["yumbrands", "amazon", "walmart"] 
+START_DATE = datetime.datetime(2011, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)
+#END_DATE = datetime.datetime(2023, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)
+END_DATE = datetime.datetime.now()
 
-TWITTER_NAMES = {"amazon" : "@amazon"}
+TWITTER_NAMES = {"yumbrands" : "@yumbrands",
+                 "amazon" : "@amazon",
+                 "walmart" : "@walmart"}
