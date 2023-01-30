@@ -26,21 +26,6 @@ if __name__ == '__main__':
     myGreenwashing.setDB(myDB)
     myGreenwashing.setBearerToken(config.BEARER_TOKEN)
     
-    
-    # corporations
-    for corporation in config.CORPORATION_LIST:
-        myGreenwashing.fetchTweets(tweetfilter=config.GREENWASH_FILTER, name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE, enddate=config.END_DATE)
-    
-    
-   
-    
-    #myDB.listTable()
-    myDB.close()
-    
-    
-    
-    # this fills another DB with the number of tweets per year
-    
     myDB2 = CorporationDB(os.path.join(config.PATH_DATA, config.DB_NAME2))
     myDB2.createTable(config.DB_TABLE_NAME2)
     
@@ -48,9 +33,15 @@ if __name__ == '__main__':
     myCorporation.setDB(myDB2)
     myCorporation.setBearerToken(config.BEARER_TOKEN)
     
+    
+    # corporations
     for corporation in config.CORPORATION_LIST:
+        myGreenwashing.fetchTweets(tweetfilter=config.GREENWASH_FILTER, name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE, enddate=config.END_DATE)
         myCorporation.fetchTweets(name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE, enddate=config.END_DATE)
     
+    
+    #myDB.listTable()
+    myDB.close()
     
     #myDB2.listTable()
     myDB2.close()
