@@ -23,14 +23,18 @@ if __name__ == '__main__':
     
     for corporation in config.CORPORATION_LIST:
         
+        print(f"Creating files for {corporation}...")
+        
 
         gwPlots = GreenwashingPlots()
         gwPlots.setDB(myDB)
         
+        print("All Tweets...")
         gwExcel = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_all.xlsx"))
         gwExcel.setDB(myDB)
         gwExcel.setCorporationDB(myDB2)
         
+        print("Unique Tweets...")
         gwExcel2 = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_unique.xlsx"))
         gwExcel2.setDB(myDB)
         gwExcel2.setCorporationDB(myDB2)
@@ -52,6 +56,7 @@ if __name__ == '__main__':
         # pull unique tweets into an excel file
         gwExcel2.writeUniqueTweets(corporation=corporation)
         
+    print(f"Creating summary file")
         
     gwExcel3 = GreenwashingExcel(os.path.join(config.PATH_DATA, r"all_tweets.xlsx"))
     gwExcel3.setDB(myDB)
