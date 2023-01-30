@@ -389,14 +389,15 @@ class GreenwashingMainObj:
                 #print(tweetObj.tweet2str())
                 self.db.saveTweet(name, tweetObj)
                 
-                # grab main tweet from retweets in case the API is buggy
-                if int(tweetObj.retweeted_tweet_id) > 0:
-                    lookup_alt = self.client.tweet_lookup(tweet_ids=[str(tweetObj.retweeted_tweet_id)])
-                    for page_alt in lookup_alt:
-                        result_alt = expansions.flatten(page_alt)
-                        for tweet_alt in result_alt:
-                            tweetObj_alt = Tweet(json_str=tweet_alt, corporation=name)
-                            self.db.saveTweet(name, tweetObj_alt)
+                # TODO: move this somewhere else...
+                # # grab main tweet from retweets in case the API is buggy
+                # if int(tweetObj.retweeted_tweet_id) > 0:
+                #     lookup_alt = self.client.tweet_lookup(tweet_ids=[str(tweetObj.retweeted_tweet_id)])
+                #     for page_alt in lookup_alt:
+                #         result_alt = expansions.flatten(page_alt)
+                #         for tweet_alt in result_alt:
+                #             tweetObj_alt = Tweet(json_str=tweet_alt, corporation=name)
+                #             self.db.saveTweet(name, tweetObj_alt)
                 
     def printSingleTweets(self, tweet_ids):
         lookup = self.client.tweet_lookup(tweet_ids=tweet_ids)
