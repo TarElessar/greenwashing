@@ -30,12 +30,12 @@ if __name__ == '__main__':
         gwPlots.setDB(myDB)
         
         print("All Tweets...")
-        gwExcel = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_all.xlsx"))
+        gwExcel = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_all.csv"))
         gwExcel.setDB(myDB)
         gwExcel.setCorporationDB(myDB2)
         
         print("Unique Tweets...")
-        gwExcel2 = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_unique.xlsx"))
+        gwExcel2 = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_unique.csv"))
         gwExcel2.setDB(myDB)
         gwExcel2.setCorporationDB(myDB2)
         
@@ -58,7 +58,7 @@ if __name__ == '__main__':
         
     print(f"Creating summary file")
         
-    gwExcel3 = GreenwashingExcel(os.path.join(config.PATH_DATA, r"all_tweets.xlsx"))
+    gwExcel3 = GreenwashingExcel(os.path.join(config.PATH_DATA, r"all_tweets.csv"))
     gwExcel3.setDB(myDB)
     gwExcel3.setCorporationDB(myDB2)
         

@@ -37,7 +37,7 @@ if __name__ == '__main__':
     # corporations
     for corporation in config.CORPORATION_LIST:
         myGreenwashing.fetchTweets(tweetfilter=config.GREENWASH_FILTER, name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE, enddate=config.END_DATE)
-        myCorporation.fetchTweets(name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE, enddate=config.END_DATE)
+        #myCorporation.fetchTweets(name=corporation, mention=config.TWITTER_NAMES[corporation], startdate=config.START_DATE, enddate=config.END_DATE)
     
     
     #myDB.listTable()
