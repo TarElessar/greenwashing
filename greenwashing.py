@@ -596,7 +596,7 @@ class GreenwashingMainObj:
                 query += ")"
                 
               
-                print(query)
+                #print(query)
                 
                 search_results = self.client.search_all(query=query, max_results=100, start_time=startdate, end_time=enddate)
                 print(f"request {i+1}/{len(tweet_author_chunks)}...")
