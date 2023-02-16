@@ -19,7 +19,8 @@ import pandas as pd
 import numpy as np
 
 class Tweet:
-    def __init__(self, json_str=None, corporation="", sqlite_row=None):
+    def __init__(self, json_str=None, corporation="", sqlite_row=None, responses_db=False):
+        
         
         if json_str is not None:
             self.tweet_id = json_str["id"]
@@ -30,10 +31,12 @@ class Tweet:
             except:
                 pass
             self.responded_tweet_id = 0
+            self.responded_author_id = 0
             try:
                 for i in range(len(json_str["referenced_tweets"])):
                     if json_str["referenced_tweets"][i]["type"] == "replied_to":
                         self.responded_tweet_id = json_str["referenced_tweets"][i]["id"]
+                        self.responded_author_id = json_str["in_reply_to_user_id"]
             except:
                 pass
             
@@ -78,6 +81,9 @@ class Tweet:
             self.follower_count = sqlite_row[14]
             self.authorhandle = sqlite_row[15]
             
+            if responses_db:
+                self.responded_author_id = sqlite_row[16]
+            
     
     def tweet2str(self, long=False):
         long_form = f'''VALUES({self.tweet_id}, {self.conservation_id}, {self.author_id}, {self.date_posted},
@@ -95,7 +101,7 @@ class Tweet:
     def getResponseSubmission(self):
         return (self.tweet_id, self.responded_tweet_id, self.conservation_id, self.author_id, self.date_posted, self.corporation,
                 self.tweet_content, self.author, self.location,
-                self.retweet_count, self.reply_count, self.like_count, self.quote_count, self.impression_count, self.follower_count, self.authorhandle)
+                self.retweet_count, self.reply_count, self.like_count, self.quote_count, self.impression_count, self.follower_count, self.authorhandle, self.responded_author_id)
     
 class CorporationDB:
     
@@ -263,6 +269,56 @@ class GreenwashingDB:
     def close(self):
         self.conn.close()
         
+    def printQuarterly(self, corporation):
+        #print(f"{corporation}")
+        
+        y1 = config.START_DATE.year
+        y2 = config.END_DATE.year
+        
+        quarterly_tweets = []
+        
+        for y in range(y1, y2):
+            
+            for (yy1, dd1, yy2, dd2) in [(y, 1, y, 4), (y, 4, y, 7),(y,7,y,10),(y,10,y+1,1)]:
+            
+                d1 = datetime.datetime(yy1, dd1, 1, 0, 0, 0, 0, datetime.timezone.utc)
+                d2 = datetime.datetime(yy2, dd2, 1, 0, 0, 0, 0, datetime.timezone.utc)
+                
+                quarterly_responses = len(self.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ?", args=(corporation,d1,d2)))
+            
+                quarterly_tweets.append(quarterly_responses)
+        
+        #print(f"{corporation} ,{suffering}")
+        
+        return quarterly_tweets
+    
+    def printQuarterlyImpressions(self, corporation):
+        #print(f"{corporation}")
+        
+        y1 = config.START_DATE.year
+        y2 = config.END_DATE.year
+        
+        quarterly_tweets = []
+        
+        for y in range(y1, y2):
+            
+            for (yy1, dd1, yy2, dd2) in [(y, 1, y, 4), (y, 4, y, 7),(y,7,y,10),(y,10,y+1,1)]:
+            
+                d1 = datetime.datetime(yy1, dd1, 1, 0, 0, 0, 0, datetime.timezone.utc)
+                d2 = datetime.datetime(yy2, dd2, 1, 0, 0, 0, 0, datetime.timezone.utc)
+                
+                quarterly_responses = self.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ?", args=(corporation,d1,d2))
+                impressions = 0
+                for tweet in quarterly_responses:
+                    impressions += tweet.follower_count
+                
+            
+                quarterly_tweets.append(impressions)
+        
+        #print(f"{corporation} ,{suffering}")
+        
+        return quarterly_tweets
+        
     def saveTweet(self, name, tweet):
         
 
@@ -333,7 +389,8 @@ class GreenwashingResponsesDB:
             quote_count INTEGER, 
             impression_count INTEGER, 
             follower_count INTEGER,
-            authorhandle TEXT NOT NULL);'''
+            authorhandle TEXT NOT NULL,
+            responded_author_id INTEGER);'''
         
             cursor = self.conn.cursor()
             cursor.execute(sqlite_create_table_query)
@@ -362,10 +419,11 @@ class GreenwashingResponsesDB:
         try:
             sql = f''' INSERT INTO {self.table_name} (tweet_id, responded_tweet_id, conservation_id, author_id, date_posted, 
             corporation, tweet_content, author, location, retweet_count, reply_count, like_count, 
-            quote_count, impression_count, follower_count, authorhandle) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'''
+            quote_count, impression_count, follower_count, authorhandle, responded_author_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'''
             
             cursor = self.conn.cursor()
             cursor.execute(sql, tweet.getResponseSubmission())
+            #print(tweet.getResponseSubmission())
             self.conn.commit()
         except sqlite3.IntegrityError:
             pass
@@ -392,7 +450,7 @@ class GreenwashingResponsesDB:
             cursor.execute(sqlite_select_query, args)
         records = cursor.fetchall()
         
-        tweets = [Tweet(sqlite_row=row) for row in records]
+        tweets = [Tweet(sqlite_row=row,responses_db=True) for row in records]
         
         return tweets
 
@@ -606,6 +664,10 @@ class GreenwashingMainObj:
                     print(f'Fetching {len(result)} responses...')
                     for tweet in result:
                         
+                        # print("\n\n=============================")
+                        # print(json.dumps(tweet))
+                        # print("=============================\n\n")
+                        
                         tweetObj = Tweet(json_str=tweet, corporation=name)
                         self.db_responses.saveTweet(name, tweetObj)
         
@@ -656,7 +718,8 @@ class GreenwashingExcel:
         self.db_responses = myDB
         
     def writeTweets(self, startdate=config.START_DATE, enddate=datetime.datetime.now(datetime.timezone.utc), corporation=""):
-        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Author_Handle', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated'])
+        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Author_Handle', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated',
+                                   'Responded_to', 'Responded_to_txt', 'Responded_to_author', 'Responded_to_author_txt'])
         tweets = self.db.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ?", args=(corporation, startdate, enddate,))
         
         
@@ -689,12 +752,28 @@ class GreenwashingExcel:
                 tweet_count_yearly = 0
             
             
+            company_responded = False
+            company_responded_txt = ""
+            at_company_responded = False
+            at_company_responded_txt = ""
+            if self.db_responses is not None:
+                responses = self.db_responses.loadTweets("WHERE corporation = ? AND responded_tweet_id = ?", args=(corporation,tweet.tweet_id))
+                if len(responses) > 0:
+                    company_responded = True
+                    company_responded_txt = responses[0].tweet_content
+                at_responses = self.db_responses.loadTweets("WHERE corporation = ? AND responded_author_id = ?", args=(corporation,tweet.author_id))
+                if len(at_responses) > 0:
+                    at_company_responded = True
+                    at_company_responded_txt = at_responses[0].tweet_content
+            
             
             tweetInfo = {'Company':corporation, 'Account':config.TWITTER_NAMES[corporation], 'Tweet_Author':tweet.author,
                        'Date':dt, 'Author_Handle':tweet.authorhandle, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count,
                        'Impression_Estimated':tweet.follower_count, 'Engagement':eng, 
                        'Cmltv_GW_Mentions':all_mentions, 'Annual_GW_Mentions':yearly_mentions,
-                       'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly}
+                       'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly,
+                       'Responded_to':company_responded, 'Responded_to_txt':company_responded_txt, 
+                       'Responded_to_author':at_company_responded, 'Responded_to_author_txt':at_company_responded_txt}
             df = df.append(tweetInfo, ignore_index=True)
         
         df.to_csv(self.path)
@@ -703,7 +782,8 @@ class GreenwashingExcel:
         
         
     def writeUniqueTweets(self, startdate=config.START_DATE, enddate=datetime.datetime.now(datetime.timezone.utc), corporation=""):
-        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Author_Handle', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated'])
+        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Author_Handle', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated',
+                                   'Responded_to', 'Responded_to_txt', 'Responded_to_author', 'Responded_to_author_txt'])
         tweets = self.db.loadTweets("WHERE retweeted_tweet_id = ? AND corporation = ? AND date_posted > ? AND date_posted < ?", args=(0, corporation, startdate, enddate,))
         
         
@@ -736,18 +816,36 @@ class GreenwashingExcel:
                 yearly_tweet_counts, tweet_count_yearly = self.db_corp.loadTweetCounts("WHERE corporation = ? AND tweet_date > ? AND tweet_date_end < ?", args=(corporation,datetime.datetime(dt.year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),datetime.datetime(dt.year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)), corporation=corporation)
             else:
                 tweet_count_yearly = 0
+                
+                
+            company_responded = False
+            company_responded_txt = ""
+            at_company_responded = False
+            at_company_responded_txt = ""
+            if self.db_responses is not None:
+                responses = self.db_responses.loadTweets("WHERE corporation = ? AND responded_tweet_id = ?", args=(corporation,tweet.tweet_id))
+                if len(responses) > 0:
+                    company_responded = True
+                    company_responded_txt = responses[0].tweet_content
+                at_responses = self.db_responses.loadTweets("WHERE corporation = ? AND responded_author_id = ?", args=(corporation,tweet.author_id))
+                if len(at_responses) > 0:
+                    at_company_responded = True
+                    at_company_responded_txt = at_responses[0].tweet_content
             
             tweetInfo = {'Company':corporation, 'Account':config.TWITTER_NAMES[corporation], 'Tweet_Author':tweet.author,
                        'Date':dt, 'Author_Handle':tweet.authorhandle, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count,
                        'Impression_Estimated':impression, 'Engagement':engagement, 
                        'Cmltv_GW_Mentions':all_mentions, 'Annual_GW_Mentions':yearly_mentions,
-                       'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly}
+                       'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly,
+                       'Responded_to':company_responded, 'Responded_to_txt':company_responded_txt, 
+                       'Responded_to_author':at_company_responded, 'Responded_to_author_txt':at_company_responded_txt}
             df = df.append(tweetInfo, ignore_index=True)
         
         df.to_csv(self.path)
         
     def writeAllUniqueTweets(self, startdate=config.START_DATE, enddate=datetime.datetime.now(datetime.timezone.utc), corporation_list=[]):
-        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Author_Handle', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated'])
+        df = pd.DataFrame(columns=['Company','Account','Date','Cmltv_Mentions','Annual_Mentions','Cmltv_GW_Mentions','Annual_GW_Mentions','Tweet_Text', 'Tweet_Author', 'Author_Handle', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated',
+                                   'Responded_to', 'Responded_to_txt', 'Responded_to_author', 'Responded_to_author_txt'])
         
         for corporation in corporation_list:
             tweets = self.db.loadTweets("WHERE retweeted_tweet_id = ? AND corporation = ? AND date_posted > ? AND date_posted < ?", args=(0, corporation, startdate, enddate,))
@@ -782,18 +880,34 @@ class GreenwashingExcel:
                     yearly_tweet_counts, tweet_count_yearly = self.db_corp.loadTweetCounts("WHERE corporation = ? AND tweet_date > ? AND tweet_date_end < ?", args=(corporation,datetime.datetime(dt.year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc),datetime.datetime(dt.year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)), corporation=corporation)
                 else:
                     tweet_count_yearly = 0
+                    
+                company_responded = False
+                company_responded_txt = ""
+                at_company_responded = False
+                at_company_responded_txt = ""
+                if self.db_responses is not None:
+                    responses = self.db_responses.loadTweets("WHERE corporation = ? AND responded_tweet_id = ?", args=(corporation,tweet.tweet_id))
+                    if len(responses) > 0:
+                        company_responded = True
+                        company_responded_txt = responses[0].tweet_content
+                    at_responses = self.db_responses.loadTweets("WHERE corporation = ? AND responded_author_id = ?", args=(corporation,tweet.author_id))
+                    if len(at_responses) > 0:
+                        at_company_responded = True
+                        at_company_responded_txt = at_responses[0].tweet_content
                 
                 tweetInfo = {'Company':corporation, 'Account':config.TWITTER_NAMES[corporation], 'Tweet_Author':tweet.author,
                            'Date':dt, 'Author_Handle':tweet.authorhandle, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count,
                            'Impression_Estimated':impression, 'Engagement':engagement, 
                            'Cmltv_GW_Mentions':all_mentions, 'Annual_GW_Mentions':yearly_mentions,
-                           'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly}
+                           'Cmltv_Mentions':tweet_count_total, 'Annual_Mentions':tweet_count_yearly,
+                           'Responded_to':company_responded, 'Responded_to_txt':company_responded_txt, 
+                           'Responded_to_author':at_company_responded, 'Responded_to_author_txt':at_company_responded_txt}
                 df = df.append(tweetInfo, ignore_index=True)
         
         df.to_csv(self.path)
         
     def writeResponses(self, startdate=config.START_DATE, enddate=datetime.datetime.now(datetime.timezone.utc), corporation=""):
-        df = pd.DataFrame(columns=['Company','Account','GW_Response','Date','Cmltv_Responses','Annual_Responses','Tweet_Text', 'Replied_To', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated'])
+        df = pd.DataFrame(columns=['Company','Account','GW_Response','Date','Cmltv_Responses','Annual_Responses','Tweet_Text', 'Replied_To_Author', 'Replied_To', 'Retweets_Count', 'Impression', 'Engagement', 'Impression_Estimated'])
         tweets = self.db_responses.loadTweets("WHERE corporation = ? AND date_posted > ? AND date_posted < ?", args=(corporation, startdate, enddate,))
         
         
@@ -828,7 +942,7 @@ class GreenwashingExcel:
                        'Date':dt, 'Tweet_Text':tweet.tweet_content, 'Retweets_Count':rt, 'Impression':tweet.impression_count,
                        'Impression_Estimated':tweet.follower_count, 'Engagement':eng, 
                        'Cmltv_Responses':all_responses, 'Annual_Responses':yearly_responses,
-                       'GW_Response':gw_response,}
+                       'GW_Response':gw_response,'Replied_To_Author':tweet.responded_author_id}
             df = df.append(tweetInfo, ignore_index=True)
         
         df.to_csv(self.path)

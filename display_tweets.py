@@ -5,7 +5,7 @@ Created on Sun Jan 22 12:06:58 2023
 @author: felix
 """
 
-from greenwashing import GreenwashingDB, GreenwashingPlots, GreenwashingExcel, CorporationDB
+from greenwashing import GreenwashingDB, GreenwashingPlots, GreenwashingExcel, CorporationDB, GreenwashingResponsesDB
 import os
 import datetime
 import config
@@ -21,6 +21,10 @@ if __name__ == '__main__':
     myDB2 = CorporationDB(os.path.join(config.PATH_DATA, config.DB_NAME2))
     myDB2.setTable(config.DB_TABLE_NAME2)
     
+    
+    myDBresponse = GreenwashingResponsesDB(os.path.join(config.PATH_DATA, config.DB_NAME3))
+    myDBresponse.createTable(config.DB_TABLE_NAME3)
+    
     for corporation in config.CORPORATION_LIST:
         
         print(f"Creating files for {corporation}...")
@@ -29,14 +33,16 @@ if __name__ == '__main__':
         gwPlots = GreenwashingPlots()
         gwPlots.setDB(myDB)
         
-        print("All Tweets...")
+        
         gwExcel = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_all.csv"))
         gwExcel.setDB(myDB)
+        gwExcel.setResponsesDB(myDBresponse)
         gwExcel.setCorporationDB(myDB2)
         
-        print("Unique Tweets...")
+       
         gwExcel2 = GreenwashingExcel(os.path.join(config.PATH_DATA, f"{corporation}_unique.csv"))
         gwExcel2.setDB(myDB)
+        gwExcel2.setResponsesDB(myDBresponse)
         gwExcel2.setCorporationDB(myDB2)
         
         
@@ -51,15 +57,18 @@ if __name__ == '__main__':
         
         
         # pull a number of tweets into an excel file
+        print("All Tweets...")
         gwExcel.writeTweets(corporation=corporation)
         
         # pull unique tweets into an excel file
+        print("Unique Tweets...")
         gwExcel2.writeUniqueTweets(corporation=corporation)
         
     print(f"Creating summary file")
         
     gwExcel3 = GreenwashingExcel(os.path.join(config.PATH_DATA, r"all_tweets.csv"))
     gwExcel3.setDB(myDB)
+    gwExcel3.setResponsesDB(myDBresponse)
     gwExcel3.setCorporationDB(myDB2)
         
     gwExcel3.writeAllUniqueTweets(corporation_list = config.CORPORATION_LIST)
@@ -69,3 +78,4 @@ if __name__ == '__main__':
     
     myDB.close()
     myDB2.close()
+    myDBresponse.close()
