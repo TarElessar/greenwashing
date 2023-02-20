@@ -487,7 +487,7 @@ class CorporationInfoMain:
         
         print(f"Fetching All Tweets for {mention} back to {startdate}")
         
-        query = f"{mention} -is:retweet -is:reply"
+        query = f"{mention} -is:retweet -is:reply lang:en"
         
         y1 = startdate.year
         #y2 = datetime.date.today().year
@@ -547,10 +547,10 @@ class GreenwashingMainObj:
         print(f"Fetching GW Tweets for {mention} back to {startdate}")
         
 
-        query = f"{mention} ({tweetfilter}) -is:reply"
+        query = f"{mention} ({tweetfilter}) -is:reply lang:en"
         
         if include_replies:
-            query = f"{mention} ({tweetfilter})"
+            query = f"{mention} ({tweetfilter}) lang:en"
             
         #query = f"{mention} ({tweetfilter})"
         #query = f"@tacobell @yumbrands #greenwashing"
