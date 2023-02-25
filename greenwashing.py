@@ -494,8 +494,12 @@ class CorporationInfoMain:
         y2 = enddate.year + 1
         
         for year in range(y1, y2):
+            
+            ed = datetime.datetime(year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc)
+            if ed.year > datetime.datetime.now().year or (ed.year == datetime.datetime.now().year and ed.month >= datetime.datetime.now().month):
+                ed = datetime.datetime.now()
         
-            search_results = self.client.counts_all(query=query, start_time=datetime.datetime(year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc), end_time=datetime.datetime(year + 1, 1, 1, 0, 0, 0, 0, datetime.timezone.utc))
+            search_results = self.client.counts_all(query=query, start_time=datetime.datetime(year, 1, 1, 0, 0, 0, 0, datetime.timezone.utc), end_time=ed)
             
             #count = 0
             
